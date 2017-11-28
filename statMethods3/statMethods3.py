@@ -4,9 +4,21 @@ import pandas as pd
 import numpy as np
 from collections import Counter
 from operator import itemgetter
+from enum import Enum
 import scipy.stats as stats
+from sklearn.svm import LinearSVC
+from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import make_pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_selection import SelectKBest
 
 UNKNOWN = "unknown_keyword"
+
+class ListComparisonOutcome(Enum):
+    CORRECT_BOTH = 0
+    CORRECT_SOURCE_INCORRECT_TARGET = 1
+    INCORRECT_BOTH = 2
+    INCORRECT_SOURCE_CORRECT_TARGET = 3
 
 def read_documents(doc_file):
     docs = []
@@ -39,6 +51,16 @@ def train_nb(documents, labels):
         freq_dict[uniq_label] = probability_dict
 
     return freq_dict
+
+def train_sklearn(docs, labels):
+    vec = TfidfVectorizer(preprocessor = lambda x: x,
+                          tokenizer = lambda x: x)
+    sel = SelectKBest(k='all')
+    clf = LinearSVC()
+    #clf = MLPClassifier()    
+    pipeline = make_pipeline(vec, sel, clf)
+    pipeline.fit(docs, labels)
+    return pipeline
 
 def compute_logprob(document, label, model):
     probability = 0
@@ -78,12 +100,47 @@ def incorrectly_labeled_documents(true_labels, guessed_labels, documents):
     
     return incorrect_docs
 
-def cross_validate(N, docs, labels):
+def find_matching_correct_guesses(source, target, correct):
+    if len(source) != len(target):
+        raise ValueError("Source and target lists should be of equal length.")
+    if len(correct) != len(target):
+        raise ValueError("Source and target lists should be of equal length.")
+    
+    matches = []
+
+    for i, elem in enumerate(source):
+        is_source_correct = False
+        is_target_correct = False
+
+        if elem == correct[i]: is_source_correct = True
+        if target[i] == correct[i]: is_target_correct = True
+
+        if is_source_correct and is_target_correct:
+            matches.append(ListComparisonOutcome.CORRECT_BOTH)
+        
+        if is_source_correct and not is_target_correct:
+            matches.append(ListComparisonOutcome.CORRECT_SOURCE_INCORRECT_TARGET)
+        
+        if not is_source_correct and is_target_correct:
+            matches.append(ListComparisonOutcome.INCORRECT_SOURCE_CORRECT_TARGET)
+        
+        if not is_source_correct and not is_target_correct:
+            matches.append(ListComparisonOutcome.INCORRECT_BOTH)
+    
+    return matches
+
+def cross_validate(N, docs, labels, classifier_type):
+    if classifier_type not in ['nb', 'sk']:
+        raise ValueError("Invalid classifier type")
+
     lower_bound = float(0)
     upper_boud = float(0)
 
     total_correct = 0
     total_out_of = 0
+
+    guessed_labels = []
+    real_labels = []
 
     for fold_nbr in range(N):
         split_point_1 = int(float(fold_nbr)/N*len(docs))
@@ -95,10 +152,19 @@ def cross_validate(N, docs, labels):
         eval_docs_fold = docs[split_point_1:split_point_2]
         eval_labels_fold = labels[split_point_1:split_point_2]
 
-        fold_model = train_nb(train_docs_fold, train_labels_fold)
-        fold_guesses = classify_documents(eval_docs_fold, model)
+        if classifier_type == 'nb':
+            fold_model = train_nb(train_docs_fold, train_labels_fold)
+            fold_guesses = classify_documents(eval_docs_fold, model)
+        
+        elif classifier_type == 'sk':
+            fold_model = train_sklearn(train_docs_fold, train_labels_fold)
+            fold_guesses = fold_model.predict(eval_docs_fold)
 
-        correct, out_of = accuracy(eval_labels_fold, [guess[0] for guess in fold_guesses])
+        if classifier_type == 'nb':
+            correct, out_of = accuracy(eval_labels_fold, [guess[0] for guess in fold_guesses])
+        elif classifier_type == 'sk':
+            correct, out_of = accuracy(eval_labels_fold, fold_guesses)
+
         total_correct += correct
         total_out_of += out_of
 
@@ -109,7 +175,10 @@ def cross_validate(N, docs, labels):
         lower_bound += low
         upper_boud += high
         
-    return float(lower_bound) / float(N), float(upper_boud) / float(N), total_correct, total_out_of
+        guessed_labels += list(fold_guesses)
+        real_labels += eval_labels_fold
+
+    return float(lower_bound) / float(N), float(upper_boud) / float(N), total_correct, total_out_of, guessed_labels, real_labels
 
 all_docs, all_labels = read_documents('all_sentiment_shuffled.txt')
 
@@ -118,6 +187,7 @@ train_docs = all_docs[:split_point]
 train_labels = all_labels[:split_point]
 eval_docs = all_docs[split_point:]
 eval_labels = all_labels[split_point:]
+
 
 model = train_nb(train_docs, train_labels)
 
@@ -155,7 +225,8 @@ print('95% credibility interval: {}'.format(posterior_distr.interval(0.95)))
 
 # Cross validation
 
-lower, upper, cross_validation_correct, cross_validation_out_of = cross_validate(10, all_docs, all_labels)
+lower, upper, cross_validation_correct, cross_validation_out_of, cross_validation_guesses, cross_validation_real = cross_validate(2, all_docs, all_labels, 'nb')
+print(lower, upper, cross_validation_correct, cross_validation_out_of)
 print('Cross validation 95% credibility interval: {}, {}'.format(lower, upper))
 
 # Comparing accuracy to a target value
@@ -164,4 +235,18 @@ p_val = stats.binom_test(cross_validation_correct, n=cross_validation_out_of, p=
 print('The p-value of the binomial hypothesis test: {}'.format(p_val))
 # Given that the p-value is much smaller than 0.05, we can assume that the null hypothesis (the accuracy of the model > 0.8) holds true.
 
+# Comparing two classifiers
 
+sk_lower, sk_upper, sk_cross_validation_correct, sk_cross_validation_out_of, sk_cross_validation_guesses, sk_cross_validation_real = cross_validate(2, all_docs, all_labels, 'sk')
+print('Cross validation SK 95% credibility interval: {}, {}'.format(sk_lower, sk_upper))
+
+# McNemar test
+contingency_data = find_matching_correct_guesses([x[0] for x in cross_validation_guesses], sk_cross_validation_guesses, cross_validation_real)
+contingency_counts = Counter(contingency_data)
+
+mcnemar_p_val = stats.binom_test(contingency_counts[ListComparisonOutcome.INCORRECT_SOURCE_CORRECT_TARGET],
+                                 contingency_counts[ListComparisonOutcome.INCORRECT_SOURCE_CORRECT_TARGET] + contingency_counts[ListComparisonOutcome.CORRECT_SOURCE_INCORRECT_TARGET]
+                                 , 0.5)
+
+print("McNemar test p-value:", mcnemar_p_val)
+# Given that the McNemar test p-value is very low, we can conclude that the Naive-Bayes classifier we have trained was better than the LinearSVC classifier.
