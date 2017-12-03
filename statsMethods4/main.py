@@ -31,7 +31,7 @@ plt.show()
 #
 #
 # RETURNS:
-#   Trained model
+#   Trained model and the generated states (in order to enable path calculations etc)
 
 def create_hmm(means_and_variances, transitions):
     states = []
@@ -50,11 +50,12 @@ def create_hmm(means_and_variances, transitions):
         model.add_transition(states[s1], model.end if s2 == -1 else states[s2], prob)
     
     model.bake()
-    return model
+    return model, states
 
-test_model = create_hmm([(0, 1), (1, 1), (2, 1)], [(0, 1, 0.3), (0, 2, 0.7), (0, 0, 0.1), 
+test_model, test_states = create_hmm([(0, 1), (1, 1), (2, 1)], [(0, 1, 0.3), (0, 2, 0.7), (0, 0, 0.1), 
                                                     (1, 1, 0.5), (1, 2, 0.6), (1, 0, 0.1),
                                                     (2, 2, 0.6), (2, 0, 0.01), (2, 1, 0.6),
                                                     (2, -1, 0.9)])
 
-print(test_model)
+
+print(exp(test_model.log_probability([1,2,3]))) # What did I calculate? How are 1,2,3 valid emissions? How does it KNOW!??!?! :'D
