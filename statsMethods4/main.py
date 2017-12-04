@@ -25,15 +25,18 @@ plt.show()
 #       List of states with their Guassian PDF means and variances: [(mean, variance), (mean, variance) ....]
 #
 #   transitions: 
-#       List of transitions between 2 states and the probability of the transition occurring: [(s1, s2, prob), (s1, s3, prob), (s2, s3, prob), (s1, s1, prob), .... ]
-#       With s1, s2 .... sN being the _INDEX_ of the state in the means_and_variances list
-#       NOTE: If sN value is -1, we assume it means model.end (i.e. the transition between the final state and the end of the model)
+#       Transition matrix such that, for the transition between the state 0 and state 1 will be located at row 0 col 1
+#           [0.1    _0.5_      0.6]
+#           [0.3     0.1       0.3]
+#           [0.9     0.4       0.2]
+#   
+#       NOTE: If col value is -1, we assume it means model.end (i.e. the transition between the final state and the end of the model)
 #
 #
 # RETURNS:
 #   Trained model and the generated states (in order to enable path calculations etc)
 
-def create_hmm(means_and_variances, transitions):
+def create_hmm(means_and_variances, transition_matrix):
     states = []
     
     for mean, variance in means_and_variances:
@@ -46,16 +49,17 @@ def create_hmm(means_and_variances, transitions):
     # TODO: Transitions, HOW CAN WE KNOW!??!
     model.add_transition(model.start, states[0], 1.0) # GUESS: I suppose we know for sure that the first state is reached for certain.
     
-    for s1, s2, prob in transitions:
-        model.add_transition(states[s1], model.end if s2 == -1 else states[s2], prob)
+    for row in range(len(transition_matrix)):
+        for col in range(len(transition_matrix[row])):
+            model.add_transition(states[row], model.end if row == -1 else states[col], transition_matrix[row][col])
     
     model.bake()
-    return model, states
+    return model
 
-test_model, test_states = create_hmm([(0, 1), (1, 1), (2, 1)], [(0, 1, 0.3), (0, 2, 0.7), (0, 0, 0.1), 
-                                                    (1, 1, 0.5), (1, 2, 0.6), (1, 0, 0.1),
-                                                    (2, 2, 0.6), (2, 0, 0.01), (2, 1, 0.6),
-                                                    (2, -1, 0.9)])
+test_model = create_hmm([(0, 1), (1, 1), (2, 1)],   [[0.2,0.3,0.6],
+                                                    [0.1,0.8,0.2],
+                                                    [0.9,0.6,0.8]])
 
 
+test_model.plot()
 print(exp(test_model.log_probability([1,2,3]))) # What did I calculate? How are 1,2,3 valid emissions? How does it KNOW!??!?! :'D
