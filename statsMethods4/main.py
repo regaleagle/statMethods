@@ -56,10 +56,20 @@ def create_hmm(means_and_variances, transition_matrix):
     model.bake()
     return model
 
-test_model = create_hmm([(0, 1), (1, 1), (2, 1)],   [[0.2,0.3,0.6],
+## Task 3
+def seg_print(sequences, states, sequence_length):
+    for i,s in enumerate(sequences):
+        print("Data {}: {}".format(i, "".join(str(o) for o in s)))
+        print("State: {}".format(states[i][0])) # As our states dont haeve names, use the index
+
+def train_model(model, sequences):
+    model.fit(sequences) # Baum-welch training
+
+    segment = model.viterbi(sequences) # Viterby segment
+    seg_print(sequences, segment[1], len(sequences[0]))
+
+hmm_model = create_hmm([(0, 1), (1, 1), (2, 1)],   [[0.2,0.3,0.6],
                                                     [0.1,0.8,0.2],
                                                     [0.9,0.6,0.8]])
 
-
-test_model.plot()
-print(exp(test_model.log_probability([1,2,3]))) # What did I calculate? How are 1,2,3 valid emissions? How does it KNOW!??!?! :'D
+train_model(hmm_model, [[0, 1, 1, 0, 2, 1], [1, 2, 1, 1, 1, 1], [2, 2, 2, 1, 1, 1]])
