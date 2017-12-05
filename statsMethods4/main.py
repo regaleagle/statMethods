@@ -87,27 +87,33 @@ def create_seg_plot(sequence, t, path):
     plt.ylabel('ratio')
     plt.ylim(-0.5, 1)
     start = 0
-    if path[0] == "None - start":
+    print(path[0])
+    if path[0][1].name == "None-start":
         path.pop(0)
     current_state = path[0]
     for i in range(len(t)):
+        print(path[i][1].name, t[i])
         if path[i][1].name != current_state:
 
-            if path[i][1].name == 'S0':
+            if current_state == 'S0':
                 plt.axvspan(start, t[i], color='red', alpha=0.5)
-            elif path[i][1].name == 'S2':
+            elif current_state == 'S1':
+                plt.axvspan(start, t[i], color='yellow', alpha=0.5)
+            elif current_state == 'S2':
                 plt.axvspan(start, t[i], color='blue', alpha=0.5)
 
-            current_state = path[i][1].name
             start = t[i]
+            current_state = path[i][1].name
+
     plt.show()
 
 def train_model(model, sequences):
     model.fit([sequences]) # Baum-welch training
     logp, path = model.viterbi(sequences) # Viterby segment
+    print(", ".join(p[1].name for p in path))
     return path
 
-hmm_model = create_hmm([(-0.1, .05), (0.0, 0.05), (0.1, 0.05)],
+hmm_model = create_hmm([(-0.1, .05), (0.0, 0.05), (0.2, 0.05)],
                                                     [[0.3,0.3,0.3],
                                                     [0.3,0.3,0.3],
                                                     [0.3,0.3,0.3]])
