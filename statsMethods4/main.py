@@ -82,12 +82,6 @@ def create_hmm(means_and_variances, transition_matrix):
     #np.random.seed(int(time.time() // 1000))
     return model
 
-## Task 3
-# def seg_print(sequences, states):
-#     for i,s in enumerate(sequences):
-#         print("Data {}: {}".format(i, "".join(str(o) for o in s)))
-#         print("State: {}".format(states[i][0])) # As our states dont haeve names, use the index
-
 def create_seg_plot(sequence, t, path, initial_params):
     plt.plot(t, sequence)
     plt.title("Init_Params" + "\n".join(wrap(str(initial_params), 50)))
@@ -137,8 +131,8 @@ def get_initial_state_params(sequence, num_states):
     for i in range(1,num_states+1):
         perc = (100/num_states) * i
         upper = np.percentile(sequence, perc)
-        set = sequence[(sequence > lower) & (sequence < upper)]
-        sample = np.random.choice(set, len(set)//4, replace=False)
+        sample_set = sequence[(sequence > lower) & (sequence < upper)]
+        sample = np.random.choice(sample_set, len(sample_set)//4, replace=False)
         lower = upper
         means_variances.append((sample.mean(), sample.std()))
     return means_variances
@@ -202,3 +196,28 @@ def test_model_prediction(model):
     return (100*((total-mismatches)/total))
 
 test_model_prediction(hmm_model)
+
+# Task 6
+# The posterior plot generated is overall flat with several major dips. This is likely due to some elements of the sequence being very random/unlikely to be next -
+# regardless of which state emits them. If a state has very low in-bound transition probabilities from other states, or if a state has very low out-bound probabilities towards other 
+# states, the 'dip' will be observed. Overall this method does relatively well, however it fails to consider outlying/extreme possibilities.
+
+def compute_posteriors(sequence, model):
+    forward = model.forward(sequence)
+    backward = model.backward(sequence)
+    all_posteriors = []
+
+    for i in range(len(forward)):
+        probs = forward[i]
+        posteriors = [None for _ in probs]
+
+        for j in range(len(probs)):
+            posteriors[j] = forward[i][j] + backward[i][j] # TODO: As these are log probabilities we will add them as opposed to multiplying them as if they were normal probabilities.
+
+        all_posteriors.append(posteriors)
+    
+    return all_posteriors
+
+posteriors = compute_posteriors(first_patient_ratio_clean, hmm_model)
+plt.plot([max(x) for x in posteriors])
+plt.show()
