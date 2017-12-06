@@ -212,7 +212,7 @@ def compute_posteriors(sequence, model):
         posteriors = [None for _ in probs]
 
         for j in range(len(probs)):
-            posteriors[j] = forward[i][j] + backward[i][j] # TODO: As these are log probabilities we will add them as opposed to multiplying them as if they were normal probabilities.
+            posteriors[j] = forward[i][j] + backward[i][j] # As these are log probabilities we will add them as opposed to multiplying them as if they were normal probabilities.
 
         all_posteriors.append(posteriors)
     
