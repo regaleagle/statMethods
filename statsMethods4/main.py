@@ -1,9 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas
 import numpy as np
-from math import *
 from pomegranate import *
-from textwrap import wrap
 import time
 
 # Constants
@@ -18,14 +16,11 @@ first_patient_ratio = np.array(hyb_data[FIRST_PATIENT_COL])
 
 
 ## Task 1
-# RATIOS = CHROMOSOMAL_POS_COL. There is absolutely no way to know this other than to ask someone who already knows.
-# Are we sure about this? to me it looks like the ratios are FIRST_PATIENT_COL at the chromosomal position - James
-#
+
 plt.scatter(chromo_pos, first_patient_ratio, s=2)
 plt.title('Best Guess Segmentation')
 plt.xlabel('position')
 plt.ylabel('ratio')
-plt.ylim(-0.5,1) #Looks better but maybe bad? - James
 
 #Highlighting possible segments
 plt.axvspan(0, 7200000, color='red', alpha=0.5)
@@ -37,29 +32,10 @@ plt.axvspan(248000000, 270000000, color='red', alpha=0.5)
 plt.axvspan(276000000, 307000000, color='blue', alpha=0.5)
 plt.show()
 
-plt.hist(first_patient_ratio, range=(-1, 1), bins=30)
-#Looks a little nicer with the range, no idea if it is a good idea -James
+plt.hist(first_patient_ratio, range=(-1, 1), bins=30) #Exluding the outliers
 plt.show()
 
-#Does anyone know what he means by thresholds? Trimming the long tail data maybe?
-#Threshold could be the 99th percentile, that's what I've added below, -James
-
 ## Task 2
-# INPUT:
-#   means_and_variances:
-#       List of states with their Guassian PDF means and variances: [(mean, variance), (mean, variance) ....]
-#
-#   transitions:
-#       Transition matrix such that, for the transition between the state 0 and state 1 will be located at row 0 col 1
-#           [0.1    _0.5_      0.6]
-#           [0.3     0.1       0.3]
-#           [0.9     0.4       0.2]
-#
-#       NOTE: If col value is -1, we assume it means model.end (i.e. the transition between the final state and the end of the model)
-#
-#
-# RETURNS:
-#   Trained model and the generated states (in order to enable path calculations etc)
 
 def create_hmm(means_and_stds, transition_matrix):
     states = []
@@ -74,9 +50,6 @@ def create_hmm(means_and_stds, transition_matrix):
     for state in states:
         model.add_transition(model.start, state, 0.33)
 
-        # Not sure whether we should define state end and
-        # whether or not we should randomize entry or just define 1 start state?
-
     for row in range(len(transition_matrix)):
         for col in range(len(transition_matrix[row])):
             model.add_transition(states[row], states[col], transition_matrix[row][col])
@@ -84,14 +57,16 @@ def create_hmm(means_and_stds, transition_matrix):
     np.random.seed(int(time.time() // 1000))
     return model
 
-def create_seg_plot(sequence, t, path, initial_params):
+def create_seg_plot(sequence, t, path, initial_params, trans_matrix):
     plt.scatter(t, sequence, s=2)
-    title = ""
+    info = ""
     count = 0
     for param in initial_params:
-        title += "\n" + f'S{count}: M {param[0]}, Std {param[1]}'
+        info += "\n" + f'S{count}: M {param[0]}, Std {param[1]}'
         count += 1
-    plt.title(title)
+    plt.title("Segmentation Prediction")
+    plt.text(0, 0.8, "means & std:" + str(info), fontsize=8)
+    plt.text(150000000, 0.8, "trans mat:\n" + str(trans_matrix), fontsize=8)
     plt.xlabel('position')
     plt.ylabel('ratio')
     plt.ylim(-0.5, 1)
@@ -156,19 +131,6 @@ def get_random_transitions(num_states):
             mat[i][np.random.randint(num_states)] += offset
     return mat
 
-# def get_random_transitions(num_states):
-#     mat = np.empty(shape=(num_states,num_states))
-#     for i in range(0,num_states):
-#         rowtotal = 1
-#         for j in range(0,num_states):
-#             if j == num_states - 1:
-#                 mat[i][j] = rowtotal
-#             else:
-#                 mat[i][j] = numpy.random.randint(rowtotal * 100)/100
-#                 rowtotal -= mat[i][j]
-#     print(mat)
-#     return mat
-
 #Clean
 threshold = np.percentile(first_patient_ratio, 99)
 first_patient_ratio_clean = first_patient_ratio[(first_patient_ratio < threshold)]
@@ -182,9 +144,9 @@ trans_mat = get_random_transitions(number_of_states)
 #Build Model
 hmm_model = create_hmm(means_and_stds, trans_mat)
 
-# Train and Display
+#Train and Display
 path = train_model(hmm_model, first_patient_ratio_clean)
-create_seg_plot(first_patient_ratio_clean, chromo_pos_clean, path, means_and_stds)
+create_seg_plot(first_patient_ratio_clean, chromo_pos_clean, path, means_and_stds, trans_mat)
 
 ##Task 5
 
@@ -195,27 +157,58 @@ def test_model_prediction(m_and_stds, trans_m):
     #Build Model Test
     new_model = create_hmm(m_and_stds, trans_m)
     sample_test_1 = new_model.sample(length=1000, path=True)
+    real_path = [int(real.name[1]) for real in sample_test_1[1][1:]]# obviously won't work for more than 9 states...
 
     #Train and Display Test
-    path = train_model(new_model, np.array(sample_test_1[0]))
+    train_path = train_model(new_model, np.array(sample_test_1[0]))
+    predict_path = [int(pred_path[1].name[1]) for pred_path in train_path[1:]]# obviously won't work for more than 9 states...
 
-    # print(", ".join([p.name for p in sample_test_1[1]]))
     # print(", ".join([p[1].name for p in path]))
-    total = len(sample_test_1[0])
+    total = len(real_path)
     mismatches = 0
-    for samp, pred in zip(sample_test_1[1], path):
-        if samp.name != pred[1].name:
+    real_states = []
+    predictions = []
+    x_val = []
+    count_pos = 0
+    for samp, pred in zip(real_path, predict_path):
+        if samp != pred:
             mismatches += 1
-    print("accuracy:")
-    print(100*((total-mismatches)/total))
-    return (100*((total-mismatches)/total))
+            real_states.append(samp)
+            predictions.append(pred)
+            x_val.append(count_pos)
+        count_pos += 1
 
+    accuracy = 100 * ((total - mismatches) / total)
+    info = ""
+    count = 0
+    for param in means_and_stds:
+        info += "\n" + f'S{count}: M {param[0]}, Std {param[1]}'
+        count += 1
+    for x in x_val:
+        plt.axvline(x=x, color='grey', alpha=0.2, linewidth=0.5)
+    plt.scatter(x_val, real_states, color='blue', s=4)
+    plt.scatter(x_val, predictions, color='red', s=4)
+    plt.title(f'Mismatches - total accuracy: {accuracy}')
+    plt.xlabel('position in sequence')
+    plt.ylabel('state of path/prediction')
+    plt.xlim(0,total)
+    plt.text(total//2, 1.5, "means & std:" + str(info), fontsize=8)
+    plt.text(total//4, 1.5, "trans mat:\n" + str(trans_m), fontsize=8)
+    plt.show()
+    print("accuracy:")
+    print(accuracy)
+    return accuracy
+
+#test if randomly generated parameters used above are useful/correct.
 test_model_prediction(means_and_stds, trans_mat)
 
 # Task 6
-# The posterior plot generated is overall flat with several major dips. This is likely due to some elements of the sequence being very random/unlikely to be next -
-# regardless of which state emits them. If a state has very low in-bound transition probabilities from other states, or if a state has very low out-bound probabilities towards other
-# states, the 'dip' will be observed. Overall this method does relatively well, however it fails to consider outlying/extreme possibilities.
+# The posterior plot generated is overall flat with several major dips.
+# This is likely due to some elements of the sequence being very random/unlikely to be next -
+# regardless of which state emits them. If a state has very low in-bound
+# transition probabilities from other states, or if a state has very low out-bound probabilities towards other
+# states, the 'dip' will be observed. Overall this method does relatively
+# well, however it fails to consider outlying/extreme possibilities.
 
 def compute_posteriors(sequence, model):
     forward = model.forward(sequence)
@@ -234,6 +227,7 @@ def compute_posteriors(sequence, model):
     return all_posteriors
 
 posteriors = compute_posteriors(first_patient_ratio_clean, hmm_model)
+plt.title("Posteriors")
 plt.plot([max(x) for x in posteriors])
 plt.show()
 
