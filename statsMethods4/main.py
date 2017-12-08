@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pandas
 import numpy as np
 from pomegranate import *
+from math import exp
 import time
 
 # Constants
@@ -219,6 +220,7 @@ test_model_prediction(means_and_stds, trans_mat)
 def compute_posteriors(sequence, model):
     forward = model.forward(sequence)
     backward = model.backward(sequence)
+    base_probability = model.log_probability(sequence)
     all_posteriors = []
 
     for i in range(len(forward)):
@@ -226,7 +228,7 @@ def compute_posteriors(sequence, model):
         posteriors = [None for _ in probs]
 
         for j in range(len(probs)):
-            posteriors[j] = forward[i][j] + backward[i][j] # As these are log probabilities we will add them as opposed to multiplying them as if they were normal probabilities.
+            posteriors[j] = (forward[i][j] + backward[i][j]) - base_probability # As these are log probabilities we will add and subtract them as opposed to multiplying them as if they were normal probabilities.
 
         all_posteriors.append(posteriors)
 
@@ -235,21 +237,18 @@ def compute_posteriors(sequence, model):
 
 posteriors = compute_posteriors(first_patient_ratio_clean, hmm_model)
 plt.title("Posteriors")
-plt.plot([max(x) for x in posteriors])
+plt.plot([exp(max(x)) for x in posteriors])
 plt.show()
 
 ##Task 7
 
 def boxplots_for_emissions(model, sequence):
-
-    #I think this is basically what we're looking for
-
     emissions = model.forward_backward(sequence)[1]
     transp_emiss_array = np.array(emissions).transpose()
-    for emission in transp_emiss_array:
-        plt.boxplot(emission)
-        plt.show()
-
+    
+    plt.boxplot([emission for emission in transp_emiss_array])
+    plt.show()
+    
 boxplots_for_emissions(hmm_model, first_patient_ratio_clean)
 
 
