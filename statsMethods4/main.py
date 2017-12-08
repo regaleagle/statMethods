@@ -124,11 +124,17 @@ def get_initial_state_params(sequence, num_states):
 def get_random_transitions(num_states):
     mat = np.empty(shape=(num_states,num_states))
     for i in range(0,num_states):
-        mat[i] = (np.random.dirichlet(np.ones(num_states),size=1))
-        mat[i] = np.around(mat[i], 2)
-        offset = 1 - np.sum(mat[i])
-        if offset != 0:
-            mat[i][np.random.randint(num_states)] += offset
+        not_valid = True
+        while not_valid:
+            not_valid = False
+            mat[i] = (np.random.dirichlet(np.ones(num_states),size=1))
+            mat[i] = np.around(mat[i], 2)
+            offset = 1 - np.sum(mat[i])
+            if offset != 0:
+                mat[i][np.random.randint(num_states)] += offset
+            for elem in mat[i]:
+                if elem <= 0:
+                    not_valid = True;
     return mat
 
 #Clean
@@ -226,8 +232,24 @@ def compute_posteriors(sequence, model):
 
     return all_posteriors
 
+
 posteriors = compute_posteriors(first_patient_ratio_clean, hmm_model)
 plt.title("Posteriors")
 plt.plot([max(x) for x in posteriors])
 plt.show()
+
+##Task 7
+
+def boxplots_for_emissions(model, sequence):
+
+    #I think this is basically what we're looking for
+
+    emissions = model.forward_backward(sequence)[1]
+    transp_emiss_array = np.array(emissions).transpose()
+    for emission in transp_emiss_array:
+        plt.boxplot(emission)
+        plt.show()
+
+boxplots_for_emissions(hmm_model, first_patient_ratio_clean)
+
 
