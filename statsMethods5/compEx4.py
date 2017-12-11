@@ -4,7 +4,7 @@ import pandas
 from matplotlib.mlab import griddata
 import numpy as np
 from pomegranate import *
-from math import exp, cos, sin
+from math import exp, cos, sin, log
 import scipy.stats as ss# Note: there are Gaussian mixture models in scikit.learn and pomegranate
 
 
@@ -55,6 +55,26 @@ def plot_predictions(model, arbitrary_component_num):
     plt.show()
 
 
+# SOURCES: https://www.youtube.com/watch?v=qMTuMa86NzU, https://www.youtube.com/watch?v=QQJHsKfNqG8
+
+def gen_responsibilities(model, distributions):
+    samples = model.sample(1000)
+    responsibilities = []
+    for vector in samples:
+        gaussian_probs = [dist.probability(vector) for dist in distributions]
+        normalization_factor = sum(gaussian_probs)
+        responsibilities.append([prob / normalization_factor for prob in gaussian_probs])
+    
+    return np.array(responsibilities)
+
+# NOTE: Look up 'Shannon entropy'
+def determine_entropy(responsibilities):
+    entropies = []
+    for resps in responsibilities:
+        entropy = -sum([r*log(r, 3) for r in resps])
+        entropies.append(entropy)
+    return entropies
+
 ## Example  -> see 2DGuassian in the lecture 10 files -> those covariance matrices are the same as below
 d1 = MultivariateGaussianDistribution([0,0], [[3.23539123, 1.30736366], [1.30736366, 1.76460877]])
 d2 = MultivariateGaussianDistribution([10,10], [[4.14954339,-2.41414444],[-2.41414444,2.85045661]])
@@ -88,12 +108,14 @@ plt.show()
 
 
 #creat the model, sample som data and predict which distribution its from (not necessary for the assignment but helpful to understand)
-model = GeneralMixtureModel(get_rand_mgd_list(3))
+distributions = get_rand_mgd_list(3)
+model = GeneralMixtureModel(distributions)
 
-# probably what we're supposed to do?
-plot_predictions(model, 2)
-plot_predictions(model, 3)
-plot_predictions(model, 4)
+# # probably what we're supposed to do?
+# plot_predictions(model, 2)
+# plot_predictions(model, 3)
+# plot_predictions(model, 4)
 
-
-
+# Question 2:
+resps = gen_responsibilities(model, distributions)
+entropies = determine_entropy(resps)
