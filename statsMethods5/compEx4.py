@@ -187,35 +187,27 @@ FIRST_PATIENT_COL = 2
 
 hyb_data = pandas.read_csv('hyb.txt', sep='\t', header=None)
 chromo_pos = np.array(hyb_data[CHROMOSOMAL_POS_COL])
-patient_indices_list = [5,7,9]
+patient_indices_list = [5,6,8,9]
 
-def generate_hmms(data, patient_list):
+def generate_hmms(data, patient_indices):
     model_list = []
-    for i in patient_list:
+    for i in patient_indices:
         number_of_states = 3
         means_and_stds = get_initial_state_params(data[i], number_of_states)
         trans_mat = get_random_transitions(number_of_states)
         hmm_model = create_hmm(means_and_stds, trans_mat)
-        hmm_model.fit([data[i]])
         model_list.append(hmm_model)
     return model_list
 
 hmm_models = generate_hmms(hyb_data, patient_indices_list)
 
-##THIS IS WHAT IT SEEMS LIKE HE IS ASKING FOR BUT IT IS COMPLETE NONSENSE
+##THIS IS WHAT IT SEEMS LIKE HE IS ASKING FOR BUT IT FEELS LIKE COMPLETE NONSENSE
 hmm_gmm_model = GeneralMixtureModel(hmm_models)
 
-print(hmm_gmm_model)
-
-points = []
-
-for i in patient_indices_list:
-    for j in range(len(hyb_data[i])):
-        points.append([hyb_data[1][j], hyb_data[i][j]])
-
-labels_1 = model.predict(points)
-[x_points, y_point] = np.array(points).T
-plt.scatter(x_points, y_point, c=labels_1)
+points_array = np.array(hyb_data[5])
+hmm_gmm_model.fit(points_array)
+labels_1 = hmm_gmm_model.predict(points_array)
+plt.scatter(np.array(hyb_data[CHROMOSOMAL_POS_COL]), points_array, c=labels_1)
 plt.show()
 
 print(labels_1)
