@@ -245,10 +245,10 @@ plt.show()
 def boxplots_for_emissions(model, sequence):
     emissions = model.forward_backward(sequence)[1]
     transp_emiss_array = np.array(emissions).transpose()
-    
+
     plt.boxplot([emission for emission in transp_emiss_array])
     plt.show()
-    
+
 boxplots_for_emissions(hmm_model, first_patient_ratio_clean)
 
 
