@@ -158,12 +158,12 @@ def get_random_transitions(num_states):
                 mat[i][np.random.randint(num_states)] += offset
             for elem in mat[i]:
                 if elem <= 0:
-                    not_valid = True;
+                    not_valid = True
     return mat
 
 def create_hmm(means_and_stds, transition_matrix):
     states = []
-    count = 0;
+    count = 0
     for mean, variance in means_and_stds:
         state = State(NormalDistribution(mean, variance), name="S"+str(count))
         states.append(state)
@@ -204,11 +204,9 @@ hmm_models = generate_hmms(hyb_data, patient_indices_list)
 ##THIS IS WHAT IT SEEMS LIKE HE IS ASKING FOR BUT IT FEELS LIKE COMPLETE NONSENSE
 hmm_gmm_model = GeneralMixtureModel(hmm_models)
 
-points_array = np.array(hyb_data[5])
-hmm_gmm_model.fit(points_array)
-labels_1 = hmm_gmm_model.predict(points_array)
-plt.scatter(np.array(hyb_data[CHROMOSOMAL_POS_COL]), points_array, c=labels_1)
-plt.show()
-
-print(labels_1)
-
+for i in patient_indices_list:
+    points_array = np.array(hyb_data[i])
+    hmm_gmm_model.fit(points_array)
+    labels_1 = hmm_gmm_model.predict(points_array)
+    plt.scatter(np.array(hyb_data[CHROMOSOMAL_POS_COL]), points_array, c=labels_1)
+    plt.show()
