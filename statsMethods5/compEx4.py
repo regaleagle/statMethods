@@ -169,6 +169,8 @@ def create_hmm(means_and_stds, transition_matrix):
         states.append(state)
         count += 1
     model = HiddenMarkovModel()
+    # model.start = states[0]
+    # model.end = states[len(states)-1]
     model.add_states(states)
 
     for state in states:
@@ -187,26 +189,41 @@ FIRST_PATIENT_COL = 2
 
 hyb_data = pandas.read_csv('hyb.txt', sep='\t', header=None)
 chromo_pos = np.array(hyb_data[CHROMOSOMAL_POS_COL])
-patient_indices_list = [5,6,8,9]
+patient_sequences = hyb_data.as_matrix()[2:].transpose()
+patient_indices_list = [6,9,10]
 
 def generate_hmms(data, patient_indices):
     model_list = []
+    number_of_states = 3
     for i in patient_indices:
-        number_of_states = 3
         means_and_stds = get_initial_state_params(data[i], number_of_states)
         trans_mat = get_random_transitions(number_of_states)
         hmm_model = create_hmm(means_and_stds, trans_mat)
         model_list.append(hmm_model)
+        # number_of_states += 1  #Uncomment to have multiple states in HMMs
     return model_list
 
-hmm_models = generate_hmms(hyb_data, patient_indices_list)
+hmm_models = generate_hmms(patient_sequences, patient_indices_list)
 
 ##THIS IS WHAT IT SEEMS LIKE HE IS ASKING FOR BUT IT FEELS LIKE COMPLETE NONSENSE
 hmm_gmm_model = GeneralMixtureModel(hmm_models)
 
-for i in patient_indices_list:
-    points_array = np.array(hyb_data[i])
-    hmm_gmm_model.fit(points_array)
-    labels_1 = hmm_gmm_model.predict(points_array)
-    plt.scatter(np.array(hyb_data[CHROMOSOMAL_POS_COL]), points_array, c=labels_1)
-    plt.show()
+hmm_gmm_model.fit(patient_sequences)
+
+predictions = hmm_gmm_model.predict(patient_sequences)
+plt.scatter(range(len(predictions)), predictions)
+plt.show()
+
+count_uniq = 0
+for i in range(len(predictions)):
+    if count_uniq >= len(hmm_gmm_model.distributions):
+        break
+    if predictions[i] == count_uniq:
+        # hmm_gmm_model.distributions[predictions[i]]
+        print("hmm: ", predictions[i])
+        print(hmm_gmm_model.distributions[predictions[i]].dense_transition_matrix())
+        logp, path = hmm_gmm_model.distributions[predictions[i]].viterbi(patient_sequences[i])
+        path_num = np.array([int(str(x)[1]) for x in path])
+        plt.scatter(range(len(patient_sequences[i])), patient_sequences[i], s=2, c=path_num[1:])
+        plt.show()
+        count_uniq += 1
