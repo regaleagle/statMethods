@@ -192,38 +192,78 @@ chromo_pos = np.array(hyb_data[CHROMOSOMAL_POS_COL])
 patient_sequences = hyb_data.as_matrix()[2:].transpose()
 patient_indices_list = [6,9,10]
 
-def generate_hmms(data, patient_indices):
+def generate_unique_hmms(data, patient_indices):
     model_list = []
     number_of_states = 3
+
+    random_transitions = [get_random_transitions(number_of_states) for _ in range(len(patient_indices))]
+
     for i in patient_indices:
         means_and_stds = get_initial_state_params(data[i], number_of_states)
-        trans_mat = get_random_transitions(number_of_states)
+        trans_mat = random_transitions.pop()
         hmm_model = create_hmm(means_and_stds, trans_mat)
         model_list.append(hmm_model)
         # number_of_states += 1  #Uncomment to have multiple states in HMMs
     return model_list
 
-hmm_models = generate_hmms(patient_sequences, patient_indices_list)
 
-##THIS IS WHAT IT SEEMS LIKE HE IS ASKING FOR BUT IT FEELS LIKE COMPLETE NONSENSE
+# Cretes HMMs with SAME transitions between all the HMM's
+def generate_duplicate_hmms(data, patient_indices):
+    model_list = []
+    number_of_states = 3
+    random_transition = get_random_transitions(number_of_states)
+
+    for i in patient_indices:
+        initial_state_param = get_initial_state_params(data[i], number_of_states)    
+        hmm_model = create_hmm(initial_state_param, random_transition)
+        model_list.append(hmm_model)
+        # number_of_states += 1  #Uncomment to have multiple states in HMMs
+    return model_list
+
+def plot_prediction_distribution(predictions):
+    plt.subplot(211)
+    plt.scatter(range(len(predictions)), predictions)
+    plt.subplot(212)
+    plt.hist(predictions)
+    plt.show()
+
+def plot_gmm_predictions(predictions, patient_sequences, gmm_model):
+    predicted = []
+    to_predict = set(predictions)
+
+    prediction_2_ignored = 0
+
+    for index, pred in enumerate(predictions):
+        if pred in predicted: continue
+        if predicted == list(to_predict): break
+        if pred == 2 and prediction_2_ignored < 2:
+            prediction_2_ignored += 1
+            continue
+
+        logp, path = gmm_model.distributions[pred].viterbi(patient_sequences[index])
+        path_num = np.array([int(str(x)[1]) for x in path])
+        plt.title(pred)
+        plt.scatter(range(len(patient_sequences[index])), patient_sequences[index], s=2, c=path_num[1:])
+        plt.show()
+
+        predicted.append(pred)
+
+hmm_models = generate_unique_hmms(patient_sequences, patient_indices_list)
 hmm_gmm_model = GeneralMixtureModel(hmm_models)
-
 hmm_gmm_model.fit(patient_sequences)
 
 predictions = hmm_gmm_model.predict(patient_sequences)
-plt.scatter(range(len(predictions)), predictions)
-plt.show()
 
-count_uniq = 0
-for i in range(len(predictions)):
-    if count_uniq >= len(hmm_gmm_model.distributions):
-        break
-    if predictions[i] == count_uniq:
-        # hmm_gmm_model.distributions[predictions[i]]
-        print("hmm: ", predictions[i])
-        print(hmm_gmm_model.distributions[predictions[i]].dense_transition_matrix())
-        logp, path = hmm_gmm_model.distributions[predictions[i]].viterbi(patient_sequences[i])
-        path_num = np.array([int(str(x)[1]) for x in path])
-        plt.scatter(range(len(patient_sequences[i])), patient_sequences[i], s=2, c=path_num[1:])
-        plt.show()
-        count_uniq += 1
+plot_prediction_distribution(predictions)
+plot_gmm_predictions(predictions, patient_sequences, hmm_gmm_model)
+
+dup_hmm_models = generate_duplicate_hmms(patient_sequences, patient_indices_list)
+dup_hmm_gmm_model = GeneralMixtureModel(dup_hmm_models)
+dup_hmm_gmm_model.fit(patient_sequences)
+
+dup_predictions = dup_hmm_gmm_model.predict(patient_sequences)
+
+plot_prediction_distribution(dup_predictions)
+plot_gmm_predictions(dup_predictions, patient_sequences, dup_hmm_gmm_model)
+
+print(predictions = dup_predictions)
