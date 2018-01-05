@@ -8,7 +8,7 @@ from pomegranate import *
 from math import exp, cos, sin, log
 import scipy.stats as ss# Note: there are Gaussian mixture models in scikit.learn and pomegranate
 
-
+# Q1
 #Create a some random Covariance matrices with seperate means (to seperate them out visually)
 def get_rand_mgd_list(num_distributions):
     dists = []
@@ -34,8 +34,6 @@ def plot_predictions(model, arbitrary_component_num, sample_info):
     [x_1, y_1] = sample_data[labels == 1].transpose()
     [x_2, y_2] = sample_data[labels == 2].transpose()
 
-    #create model from sample data with arbitrary component number for some reason.
-    # Should we use random initialiser as above then fit instead?
     model_2 = GeneralMixtureModel.from_samples(MultivariateGaussianDistribution, n_components=arbitrary_component_num, X=sample_data)
 
     [x_it, y_it] = sample_data.transpose()
@@ -76,54 +74,22 @@ def determine_entropy(responsibilities):
         entropies.append(entropy)
     return entropies
 
-## Example  -> see 2DGuassian in the lecture 10 files -> those covariance matrices are the same as below
-# d1 = MultivariateGaussianDistribution([0,0], [[3.23539123, 1.30736366], [1.30736366, 1.76460877]])
-# d2 = MultivariateGaussianDistribution([10,10], [[4.14954339,-2.41414444],[-2.41414444,2.85045661]])
-# d3 = MultivariateGaussianDistribution([-10,-10], [[17.67926173 , -8.48921224],[-8.48921224, 5.32073827]])
-# model = GeneralMixtureModel([d1, d2, d3])
-# sample_data_1 = np.array(model.sample(1000))
-# [x, y] = sample_data_1.transpose()
-# plt.scatter(x, y)
-#
-# delta = 0.025
-# x = np.arange(-20.0, 20.0, delta)
-# y = np.arange(-20.0, 20.0, delta)
-# X, Y = np.meshgrid(x, y)
-#
-# #possible plotting solution based on parameters:
-# Z0 = mlab.bivariate_normal(X, Y, 3.23539123, 1.76460877, 0.0, 0.0, 1.30736366)
-#
-# Z1 = mlab.bivariate_normal(X, Y, 4.14954339, 2.85045661, 10, 10, -2.41414444)
-#
-# Z2 = mlab.bivariate_normal(X, Y, 17.67926173, 5.32073827, -10, -10, -8.48921224)
-#
-# CS0 = plt.contour(X, Y, Z0)
-# CS1 = plt.contour(X, Y, Z1)
-# CS2 = plt.contour(X, Y, Z2)
-# plt.clabel(CS0, inline=1, fontsize=10)
-# plt.clabel(CS1, inline=1, fontsize=10)
-# plt.clabel(CS2, inline=1, fontsize=10)
-# plt.title('Simplest default with labels')
-# plt.show()
 
 
-
-#creat the model, sample som data and predict which distribution its from (not necessary for the assignment but helpful to understand)
+#create the model, sample som data and predict which distribution its from (not necessary for the assignment but helpful to understand)
 distributions = get_rand_mgd_list(3)
 model = GeneralMixtureModel(distributions)
 sample_points = model.sample(1000)
 [x_val, y_val] = np.array(sample_points).T
 
-# # probably what we're supposed to do?
 plot_predictions(model, 2, sample_points)
 plot_predictions(model, 3, sample_points)
 plot_predictions(model, 4, sample_points)
 
-# Question 2:
+# Q2:
 resps = gen_responsibilities(sample_points, distributions)
 entropies = determine_entropy(resps)
 
-#My guess for plotting entropies
 hot_map = plt.get_cmap('hot')
 
 plt.scatter(x_val, y_val, c=[x for x in entropies], cmap=hot_map)
@@ -131,7 +97,7 @@ plt.colorbar()
 plt.show()
 
 
-#Q3
+# Q3 & Q4
 
 def get_initial_state_params(sequence, num_states):
     means_stds = []
@@ -170,11 +136,11 @@ def create_hmm(means_and_stds, transition_matrix):
         count += 1
     model = HiddenMarkovModel()
     # model.start = states[0]
-    # model.end = states[len(states)-1]
     model.add_states(states)
 
     for state in states:
         model.add_transition(model.start, state, 0.33)
+        #model.add_transition(state, model.end, 0.33)
 
     for row in range(len(transition_matrix)):
         for col in range(len(transition_matrix[row])):
@@ -189,34 +155,35 @@ FIRST_PATIENT_COL = 2
 
 hyb_data = pandas.read_csv('hyb.txt', sep='\t', header=None)
 chromo_pos = np.array(hyb_data[CHROMOSOMAL_POS_COL])
-patient_sequences = hyb_data.as_matrix()[2:].transpose()
-patient_indices_list = [6,9,10]
+patient_sequences = hyb_data.as_matrix().transpose()[2:]
 
-def generate_unique_hmms(data, patient_indices):
+
+
+def generate_unique_hmms(data, list_of_state_size, number_of_hmms):
     model_list = []
-    number_of_states = 3
+    patient_indices = np.random.randint(len(data), size=number_of_hmms)
+    random_transitions = [get_random_transitions(list_of_state_size[i]) for i in range(len(patient_indices))]
 
-    random_transitions = [get_random_transitions(number_of_states) for _ in range(len(patient_indices))]
-
-    for i in patient_indices:
-        means_and_stds = get_initial_state_params(data[i], number_of_states)
-        trans_mat = random_transitions.pop()
+    for i in range(len(patient_indices)):
+        means_and_stds = get_initial_state_params(data[patient_indices[i]], list_of_state_size[i])
+        trans_mat = random_transitions[i]
         hmm_model = create_hmm(means_and_stds, trans_mat)
+        hmm_model.fit([data[patient_indices[i]]])
         model_list.append(hmm_model)
-        # number_of_states += 1  #Uncomment to have multiple states in HMMs
     return model_list
 
 
-# Cretes HMMs with SAME transitions between all the HMM's
-def generate_duplicate_hmms(data, patient_indices):
+# Creates HMMs starting with SAME transitions between all the HMM's and same number of states
+def generate_duplicate_hmms(data, number_of_states):
     model_list = []
-    number_of_states = 3
+    patient_indices = np.random.randint(len(data), size=number_of_states)
     random_transition = get_random_transitions(number_of_states)
 
     for i in patient_indices:
         initial_state_param = get_initial_state_params(data[i], number_of_states)    
         hmm_model = create_hmm(initial_state_param, random_transition)
         model_list.append(hmm_model)
+        hmm_model.fit([data[i]])
         # number_of_states += 1  #Uncomment to have multiple states in HMMs
     return model_list
 
@@ -230,25 +197,20 @@ def plot_prediction_distribution(predictions):
 def plot_gmm_predictions(predictions, patient_sequences, gmm_model):
     predicted = []
     to_predict = set(predictions)
-
-    prediction_2_ignored = 0
-
-    for index, pred in enumerate(predictions):
-        if pred in predicted: continue
-        if predicted == list(to_predict): break
-        if pred == 2 and prediction_2_ignored < 2:
-            prediction_2_ignored += 1
-            continue
-
-        logp, path = gmm_model.distributions[pred].viterbi(patient_sequences[index])
+    predict_lists = {}
+    for i in to_predict:
+        predict_lists[i] = []
+        for j in range(len(patient_sequences)):
+            if predictions[j] == i:
+                predict_lists[i].append(patient_sequences[j])
+        random_index = np.random.randint(len(predict_lists[i]))
+        logp, path = gmm_model.distributions[i].viterbi(predict_lists[i][random_index])
         path_num = np.array([int(str(x)[1]) for x in path])
-        plt.title(pred)
-        plt.scatter(range(len(patient_sequences[index])), patient_sequences[index], s=2, c=path_num[1:])
+        plt.title(f'Number of states: {len(gmm_model.distributions[i].states)-2}')
+        plt.scatter(range(len(predict_lists[i][random_index])), predict_lists[i][random_index], s=2, c=path_num[1:])
         plt.show()
 
-        predicted.append(pred)
-
-hmm_models = generate_unique_hmms(patient_sequences, patient_indices_list)
+hmm_models = generate_unique_hmms(patient_sequences, [3, 3, 3, 4], 4)
 hmm_gmm_model = GeneralMixtureModel(hmm_models)
 hmm_gmm_model.fit(patient_sequences)
 
@@ -257,7 +219,7 @@ predictions = hmm_gmm_model.predict(patient_sequences)
 plot_prediction_distribution(predictions)
 plot_gmm_predictions(predictions, patient_sequences, hmm_gmm_model)
 
-dup_hmm_models = generate_duplicate_hmms(patient_sequences, patient_indices_list)
+dup_hmm_models = generate_duplicate_hmms(patient_sequences, 3)
 dup_hmm_gmm_model = GeneralMixtureModel(dup_hmm_models)
 dup_hmm_gmm_model.fit(patient_sequences)
 
@@ -265,5 +227,3 @@ dup_predictions = dup_hmm_gmm_model.predict(patient_sequences)
 
 plot_prediction_distribution(dup_predictions)
 plot_gmm_predictions(dup_predictions, patient_sequences, dup_hmm_gmm_model)
-
-print(predictions = dup_predictions)
